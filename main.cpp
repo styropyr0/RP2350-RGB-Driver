@@ -10,7 +10,7 @@
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
-#include "ws2812.pio.h"
+#include "ws2812.asm.h"
 
 #define IS_RGBW true
 #define NUM_PIXELS 1
