@@ -2,7 +2,7 @@
 
 This project demonstrates how to control the onboard WS2812 (NeoPixel) LED of the **Seeed Studio XIAO RP2350** using C/C++ with the Pico SDK.
 
- The provided code works with the [COLORMOD desktop application](https://github.com/styropyr0/oled.h)
+ The provided code works with the [COLORMOD desktop application](https://github.com/styropyr0/ColorMod)
  and also with any tool capable of sending raw data over a serial port (such as Arduino Serial Monitor, PuTTY, or other terminal programs).
 
 ---
