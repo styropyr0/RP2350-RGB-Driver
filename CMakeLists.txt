@@ -44,7 +44,7 @@ pico_set_program_version(RP2350-RGB-Driver "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(RP2350-RGB-Driver 0)
-pico_enable_stdio_usb(RP2350-RGB-Driver 0)
+pico_enable_stdio_usb(RP2350-RGB-Driver 1)
 pico_generate_pio_header(RP2350-RGB-Driver ${CMAKE_CURRENT_LIST_DIR}/ws2812.asm)
 
 # Add the standard library to the build

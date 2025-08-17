@@ -1,16 +1,16 @@
-/**
- * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
+#include "pico/stdlib.h"
+#include <stdio.h>
+#include <ctype.h>
+#include <stdbool.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "pico/stdlib.h"
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
 #include "ws2812.asm.h"
+
+#define PARSE_TIMEOUT_MS 1000
 
 #define IS_RGBW true
 #define NUM_PIXELS 1
@@ -22,91 +22,105 @@
 #define WS2812_PIN 22
 #endif
 
-static inline void put_pixel(uint32_t pixel_grb) {
+bool connected = false;
+
+static inline void put_pixel(uint32_t pixel_grb)
+{
     pio_sm_put_blocking(pio0, 0, pixel_grb << 8u);
 }
 
-static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
-    return
-            ((uint32_t) (r) << 8) |
-            ((uint32_t) (g) << 16) |
-            (uint32_t) (b);
-}
+int serial_parseInt()
+{
+    absolute_time_t start = get_absolute_time();
+    int val = 0;
+    bool started = false;
 
-void pattern_snakes(uint len, uint t) {
-    for (uint i = 0; i < len; ++i) {
-        uint x = (i + (t >> 1)) % 64;
-        if (x < 10)
-            put_pixel(urgb_u32(0xff, 0, 0));
-        else if (x >= 15 && x < 25)
-            put_pixel(urgb_u32(0, 0xff, 0));
-        else if (x >= 30 && x < 40)
-            put_pixel(urgb_u32(0, 0, 0xff));
-        else
-            put_pixel(0);
+    while (true)
+    {
+        if (!connected)
+            printf("FTERjhgdstkjlsa\r\n");
+        
+        fflush(stdout);
+
+        int ch = getchar_timeout_us(1000);
+        if (ch == PICO_ERROR_TIMEOUT)
+        {
+            if (started)
+                if (absolute_time_diff_us(start, get_absolute_time()) > PARSE_TIMEOUT_MS * 1000)
+                    return val;
+            continue;
+        }
+
+        if (isdigit(ch))
+        {
+            val = val * 10 + (ch - '0');
+            started = true;
+            start = get_absolute_time();
+        }
+        else if (started)
+            return val;
     }
 }
 
-void pattern_random(uint len, uint t) {
-    if (t % 8)
-        return;
-    for (int i = 0; i < len; ++i)
-        put_pixel(rand());
+long int val;
+int r = 0, g = 0, b = 0, w = 0;
+
+void setup()
+{
+    printf("Waiting for handshake signal with computer...\r\n");
+    int handshake = 0;
+    // put_pixel(g << 16 | r << 8 | b << 0 | 0);
+    while (handshake != 9090)
+        handshake = serial_parseInt();
+
+    connected = true;
+    printf("Handshake recieved\r\n");
+    sleep_ms(1000);
+    printf("COMMANDLINE CONTROL\n[0~768 for setting color] [1024 to turn off] [>1024 for dynamic lighting]\r\n");
 }
 
-void pattern_sparkle(uint len, uint t) {
-    if (t % 8)
-        return;
-    for (int i = 0; i < len; ++i)
-        put_pixel(rand() % 16 ? 0 : 0xffffffff);
+void loop()
+{
+    val = serial_parseInt();
+    printf("You entered: %ld\r\n", val);
+
+    if (val < 256 && val > 0)
+        r = val;
+    else if (val > 255 && val < 512)
+        g = val - 256;
+    else if (val > 511 && val < 768)
+        b = val - 512;
+    else if (val > 767 && val < 1024)
+        w = val - 768;
+    else if (val == 1024)
+        r = g = b = w = 0;
+    else if (val != 0 && val != 1024)
+        printf("NO EFFECT\r\n");
+
+    put_pixel(w << 24 | g << 16 | r << 8 | b << 0 | 0);
 }
 
-void pattern_greys(uint len, uint t) {
-    int max = 100;
-    t %= max;
-    for (int i = 0; i < len; ++i) {
-        put_pixel(t * 0x10101);
-        if (++t >= max) t = 0;
-    }
-}
-
-typedef void (*pattern)(uint len, uint t);
-const struct {
-    pattern pat;
-    const char *name;
-} pattern_table[] = {
-        {pattern_snakes,  "Snakes!"},
-        {pattern_random,  "Random data"},
-        {pattern_sparkle, "Sparkles"},
-        {pattern_greys,   "Greys"},
-};
-
-int main() {
+int main()
+{
     stdio_init_all();
 
+    while (!stdio_usb_connected())
+        sleep_ms(100);
+        
+    sleep_ms(2000);
     const int RGB_POWER = 23;
     gpio_init(RGB_POWER);
     gpio_set_dir(RGB_POWER, GPIO_OUT);
     gpio_put(RGB_POWER, 1);
-
-    printf("WS2812 Smoke Test, using pin %d", WS2812_PIN);
 
     PIO pio = pio0;
     int sm = 0;
     uint offset = pio_add_program(pio, &ws2812_program);
 
     ws2812_program_init(pio, sm, offset, WS2812_PIN, 800000, IS_RGBW);
-
-    int t = 0;
-    while (1) {
-        int pat = rand() % count_of(pattern_table);
-        int dir = (rand() >> 30) & 1 ? 1 : -1;
-        puts(pattern_table[pat].name);
-        puts(dir == 1 ? "(forward)" : "(backward)");
-        for (int i = 0; i < 1000; ++i) {
-            pattern_table[pat].pat(NUM_PIXELS, t);
-            sleep_ms(100);
-            t += dir;
-        }
-    }
+    sleep_ms(2000);
+    put_pixel(g << 16 | r << 8 | b << 0 | 0);
+    setup();
+    while (true)
+        loop();
 }
